@@ -72,15 +72,17 @@ const ident_s = mecha.asStr(c);
 const special_s = mecha.asStr(mecha.combine(.{ c, mecha.ascii.char('!') }));
 const fun_ident = mecha.oneOf(.{ special_s, ident_s });
 
+const wd = mecha.ascii.whitespace.many(.{ .collect = false }).discard();
+
 const atom_parser = mecha.recursiveRef(struct {
     fn f(comptime _atom_parser: anytype) mecha.Parser(atom) {
-        const wd = mecha.ascii.whitespace.many(.{ .collect = false }).discard();
         const sexp_parser = mecha.combine(.{
             mecha.ascii.char('(').discard(),
             wd,
             fun_ident,
             wd,
             mecha.many(_atom_parser, .{ .separator = wd }),
+            wd,
             mecha.ascii.char(')').discard(),
         }).map(mapSexp);
 
@@ -90,8 +92,8 @@ const atom_parser = mecha.recursiveRef(struct {
     }
 }.f);
 
-const program_parser = mecha.many(atom_parser, .{ .separator = mecha.ascii.whitespace.many(.{ .collect = false }).discard() });
-const file_parser = mecha.combine(.{ mecha.ascii.whitespace.many(.{ .collect = false }).discard(), program_parser, mecha.ascii.whitespace.many(.{ .collect = false }).discard(), mecha.eos.discard() });
+const program_parser = mecha.many(atom_parser, .{ .separator = wd });
+const file_parser = mecha.combine(.{ wd, program_parser, wd, mecha.eos.discard() });
 
 pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
