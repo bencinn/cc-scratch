@@ -39,7 +39,7 @@ fn mapSexp(n: sexp) atom {
 }
 
 fn mapArray(n: []const atom) atom {
-    return .{ .array = n }; 
+    return .{ .array = n };
 }
 
 const atom = union(atom_type) {
@@ -58,7 +58,8 @@ const atom = union(atom_type) {
                 for (vs) |v| {
                     try writer.print(" {f}", .{v});
                 }
-                try writer.print(" )", .{}); },
+                try writer.print(" )", .{});
+            },
             .sexp => |sexp_val| try writer.print("{f}", .{sexp_val}),
         }
     }
@@ -72,13 +73,13 @@ const fun_ident = mecha.oneOf(.{ special_s, ident_s });
 const wd = mecha.ascii.whitespace.many(.{ .collect = false }).discard();
 
 const sexp_parser = mecha.recursiveRef(struct {
-    fn f(comptime _sexp_parser: anytype) mecha.Parser(sexp) {
+    fn f(comptime _sexp_parser: mecha.Parser(sexp)) mecha.Parser(sexp) {
         const atom_parser = mecha.recursiveRef(struct {
-            fn f(comptime _atom_parser: anytype) mecha.Parser(atom) {
+            fn f(comptime _atom_parser: mecha.Parser(atom)) mecha.Parser(atom) {
                 const array_parser = mecha.combine(.{ mecha.ascii.char('\'').discard(), mecha.ascii.char('(').discard(), wd, mecha.many(_atom_parser, .{ .separator = wd }), wd, mecha.ascii.char(')').discard() }).map(mapArray);
                 const atom_parser_inner = mecha.oneOf(.{ mecha.int(i64, .{}).map(mapNumber), ident_s.map(mapIdent), array_parser });
 
-                return mecha.oneOf(.{atom_parser_inner, _sexp_parser.map(mapSexp)});
+                return mecha.oneOf(.{ atom_parser_inner, _sexp_parser.map(mapSexp) });
             }
         }.f);
 
@@ -91,7 +92,7 @@ const sexp_parser = mecha.recursiveRef(struct {
             wd,
             mecha.ascii.char(')').discard(),
         }).map(mecha.toStruct(sexp));
-        
+
         return sexp_parser_inner;
     }
 }.f);
@@ -159,13 +160,13 @@ pub fn main(init: std.process.Init) !void {
     try s.beginObject();
 
     try s.objectField("semver");
-    try s.write("3.3.3");
+    try s.write("3.0.0");
 
-    try s.objectField("vm");
-    try s.write("12.0.2-hotfix");
+    // try s.objectField("vm");
+    // try s.write("12.0.2-hotfix");
 
-    try s.objectField("agent");
-    try s.write("scratchcc");
+    // try s.objectField("agent");
+    // try s.write("scratchcc");
 
     try s.endObject();
     try s.endObject();
