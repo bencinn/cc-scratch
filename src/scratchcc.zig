@@ -34,11 +34,8 @@ fn mapNumber(n: i64) atom {
     return .{ .number = n };
 }
 
-fn mapSexp(n: struct { []const u8, []const atom }) atom {
-    return .{ .sexp = .{
-        .head = n[0],
-        .param = n[1],
-    } };
+fn mapSexp(n: sexp) atom {
+    return .{ .sexp = n };
 }
 
 fn mapArray(n: []const atom) atom {
@@ -74,25 +71,32 @@ const fun_ident = mecha.oneOf(.{ special_s, ident_s });
 
 const wd = mecha.ascii.whitespace.many(.{ .collect = false }).discard();
 
-const atom_parser = mecha.recursiveRef(struct {
-    fn f(comptime _atom_parser: anytype) mecha.Parser(atom) {
-        const sexp_parser = mecha.combine(.{
+const sexp_parser = mecha.recursiveRef(struct {
+    fn f(comptime _sexp_parser: anytype) mecha.Parser(sexp) {
+        const atom_parser = mecha.recursiveRef(struct {
+            fn f(comptime _atom_parser: anytype) mecha.Parser(atom) {
+                const array_parser = mecha.combine(.{ mecha.ascii.char('\'').discard(), mecha.ascii.char('(').discard(), wd, mecha.many(_atom_parser, .{ .separator = wd }), wd, mecha.ascii.char(')').discard() }).map(mapArray);
+                const atom_parser_inner = mecha.oneOf(.{ mecha.int(i64, .{}).map(mapNumber), ident_s.map(mapIdent), array_parser });
+
+                return mecha.oneOf(.{atom_parser_inner, _sexp_parser.map(mapSexp)});
+            }
+        }.f);
+
+        const sexp_parser_inner = mecha.combine(.{
             mecha.ascii.char('(').discard(),
             wd,
             fun_ident,
             wd,
-            mecha.many(_atom_parser, .{ .separator = wd }),
+            mecha.many(atom_parser, .{ .separator = wd }),
             wd,
             mecha.ascii.char(')').discard(),
-        }).map(mapSexp);
-
-        const array_parser = mecha.combine(.{ mecha.ascii.char('\'').discard(), mecha.ascii.char('(').discard(), wd, mecha.many(_atom_parser, .{ .separator = wd }), wd, mecha.ascii.char(')').discard() }).map(mapArray);
-
-        return mecha.oneOf(.{ sexp_parser, mecha.int(i64, .{}).map(mapNumber), ident_s.map(mapIdent), array_parser });
+        }).map(mecha.toStruct(sexp));
+        
+        return sexp_parser_inner;
     }
 }.f);
 
-const program_parser = mecha.many(atom_parser, .{ .separator = wd });
+const program_parser = mecha.many(sexp_parser, .{ .separator = wd });
 const file_parser = mecha.combine(.{ wd, program_parser, wd, mecha.eos.discard() });
 
 pub fn main(init: std.process.Init) !void {
